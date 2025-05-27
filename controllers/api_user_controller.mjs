@@ -1,3 +1,4 @@
+import message from "../models/message.mjs";
 import User from "../models/user.mjs";
 import jwt from "jsonwebtoken";
 
@@ -50,12 +51,12 @@ class ApiUserController {
     }
   }
   static async create(req, res) {
-    try {
-      let { name, email, workExperience, age } = req.body;
+    try{
+      let {name , email, wokrExperience, age} = req.body;
       let user = await User.create({ name, email, workExperience, age });
-      res.status(200).json({ message: "Tao Du liệu thành công!!", user });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(200).json({message: "Tạo dữ liệu thành công!", user});
+    }catch(error){
+      res.status(500).json({message: error.message});
     }
   }
 }
