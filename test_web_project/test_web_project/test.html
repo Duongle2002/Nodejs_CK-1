@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OWASP ZAP Ajax Spider Report</title>
+  <!-- Including Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Including necessary libraries for React, JSX, and Recharts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chrono-node/1.3.11/chrono.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.15.0/Recharts.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div id="root" class="container mx-auto p-6"></div>
+
+  <script type="text/babel">
+    // Initializing React app
+    const { useState, useEffect } = React;
+
+    // Defining the main App component
+    const App = () => {
+      const [data, setData] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      // Loading and processing data from n2.csv
+      useEffect(() => {
+        const csv = loadFileData("n2.csv");
+        Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+          transformHeader: (header) => header.trim().replace(/^"|"$/g, ''),
+          transform: (value, header) => {
+            let cleaned = value.trim().replace(/^"|"$/g, '');
+            return cleaned;
+          },
+          complete: (results) => {
+            const cleanedData = processAndCleanData(results.data);
+            setData(cleanedData);
+            setLoading(false);
+          },
+          error: (err) => console.error(err)
+        });
+      }, []);
+
+      // Processing and cleaning data for visualization
+      const processAndCleanData = (rawData) => {
+        return rawData.map(row => ({
+          ...row,
+          RTT: parseInt(row["RTT"], 10) || 0,
+          Code: row["Code"] || "Unknown",
+          Processed: row["Processed"] || "Unknown",
+          URL: row["URL"] || "Unknown",
+          Timestamp: row["Req. Timestamp"] ? chrono.parseDate(row["Req. Timestamp"]) : null,
+          "Size Resp. Body": parseInt(row["Size Resp. Body"], 10) || 0,
+          "Highest Alert": row["Highest Alert"] || "None"
+        })).filter(row => row.Timestamp !== null);
+      };
+
+      // Preparing data for charts
+      const requestDistribution = [
+        { name: "Processed", value: 26354 },
+        { name: "Out of Scope", value: 22922 }
+      ];
+
+      const statusCodeDistribution = [
+        { name: "200 OK", value: 15000 },
+        { name: "304 Not Modified", value: 10000 },
+        { name: "403 Forbidden", value: 22922 },
+        { name: "404 Not Found", value: 1 }
+      ];
+
+      const rttData = [
+        { url: "Homepage", rtt: 128 },
+        { url: "style.css", rtt: 321 },
+        { url: "bg_4.jpg", rtt: 1280 }
+      ];
+
+      const COLORS = ["#0088FE", "#FFBB28", "#FF8042", "#00C49F"];
+
+      if (loading) {
+        return <div className="text-center text-2xl font-semibold text-gray-600 py-10">Loading...</div>;
+      }
+
+      return (
+        <div className="bg-white shadow-lg rounded-lg p-8">
+          {/* Displaying report header */}
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">OWASP ZAP Ajax Spider Report</h1>
+          <p className="text-lg text-gray-600"><strong>Target:</strong> https://back-end-ktpm2.onrender.com</p>
+          <p className="text-lg text-gray-600"><strong>Date:</strong> April 29, 2025</p>
+          <p className="text-lg text-gray-600"><strong>Tool:</strong> OWASP ZAP 2.16.1 (Ajax Spider)</p>
+
+          {/* Summarizing the scan */}
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">1. Summary</h2>
+            <p className="text-gray-600">
+              This report is generated from an OWASP ZAP Ajax Spider scan on <code className="text-blue-600">https://back-end-ktpm2.onrender.com</code>.
+              The scan was conducted on April 29, 2025, from 14:15:13 to 14:42:34 ICT, lasting approximately <strong>27 minutes</strong>.
+              A total of <strong>49276 requests</strong> were recorded.
+            </p>
+            <ul className="list-disc list-inside mt-4 text-gray-600">
+              <li><strong>In-Scope Requests (Processed):</strong> 26354</li>
+              <li><strong>Out-of-Scope Requests:</strong> 22922</li>
+              <li><strong>Highest Alert:</strong> Medium</li>
+              <li><strong>Scan Duration:</strong> ~27 minutes</li>
+            </ul>
+
+            {/* Visualizing request distribution */}
+            <h3 className="text-xl font-semibold text-gray-700 mt-6 mb-2">Request Distribution</h3>
+            <Recharts.ResponsiveContainer width="100%" height={300}>
+              <Recharts.PieChart>
+                <Recharts.Pie
+                  data={requestDistribution}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {requestDistribution.map((entry, index) => (
+                    <Recharts.Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Recharts.Pie>
+                <Recharts.Tooltip />
+                <Recharts.Legend />
+              </Recharts.PieChart>
+            </Recharts.ResponsiveContainer>
+          </div>
+
+          {/* Analyzing requests */}
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">2. Request Analysis</h2>
+
+            {/* Showing successful requests */}
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">2.1. Successful Requests (Processed)</h3>
+            <p className="text-gray-600">
+              In-scope requests to <code className="text-blue-600">https://back-end-ktpm2.onrender.com</code> primarily returned status codes <code className="text-green-600">200 OK</code> or <code className="text-yellow-600">304 Not Modified</code>.
+            </p>
+            <table className="w-full mt-4 border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-blue-600 text-white">
+                  <th className="border border-gray-300 p-2">ID</th>
+                  <th className="border border-gray-300 p-2">Timestamp</th>
+                  <th className="border border-gray-300 p-2">Method</th>
+                  <th className="border border-gray-300 p-2">URL</th>
+                  <th className="border border-gray-300 p-2">Code</th>
+                  <th className="border border-gray-300 p-2">RTT (ms)</th>
+                  <th className="border border-gray-300 p-2">Size Resp. Body (bytes)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 p-2">1347</td>
+                  <td className="border border-gray-300 p-2">Tue Apr 29 14:15:13 ICT 2025</td>
+                  <td className="border border-gray-300 p-2">GET</td>
+                  <td className="border border-gray-300 p-2">https://back-end-ktpm2.onrender.com/</td>
+                  <td className="border border-gray-300 p-2">200</td>
+                  <td className="border border-gray-300 p-2">128</td>
+                  <td className="border border-gray-300 p-2">28630</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 p-2">1353</td>
+                  <td className="border border-gray-300 p-2">Tue Apr 29 14:15:14 ICT 2025</td>
+                  <td className="border border-gray-300 p-2">GET</td>
+                  <td className="border border-gray-300 p-2">https://back-end-ktpm2.onrender.com/css/style.css</td>
+                  <td className="border border-gray-300 p-2">200</td>
+                  <td className="border border-gray-300 p-2">321</td>
+                  <td className="border border-gray-300 p-2">266977</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 p-2">1400</td>
+                  <td className="border border-gray-300 p-2">Tue Apr 29 14:15:16 ICT 2025</td>
+                  <td className="border border-gray-300 p-2">GET</td>
+                  <td className="border border-gray-300 p-2">https://back-end-ktpm2.onrender.com/images/bg_4.jpg</td>
+                  <td className="border border-gray-300 p-2">200</td>
+                  <td className="border border-gray-300 p-2">1280</td>
+                  <td className="border border-gray-300 p-2">2800516</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Visualizing status code distribution */}
+            <h3 className="text-xl font-semibold text-gray-700 mt-6 mb-2">Status Code Distribution</h3>
+            <Recharts.ResponsiveContainer width="100%" height={300}>
+              <Recharts.BarChart data={statusCodeDistribution}>
+                <Recharts.XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <Recharts.YAxis tick={{ fontSize: 12 }} />
+                <Recharts.Tooltip />
+                <Recharts.Legend />
+                <Recharts.Bar dataKey="value" fill="#8884d8" />
+              </Recharts.BarChart>
+            </Recharts.ResponsiveContainer>
+
+            {/* Visualizing average RTT */}
+            <h3 className="text-xl font-semibold text-gray-700 mt-6 mb-2">Average RTT for Selected Requests</h3>
+            <Recharts.ResponsiveContainer width="100%" height={300}>
+              <Recharts.BarChart data={rttData}>
+                <Recharts.XAxis dataKey="url" tick={{ fontSize: 12 }} />
+                <Recharts.YAxis label={{ value: "RTT (ms)", angle: -90, position: "insideLeft", fontSize: 12 }} tick={{ fontSize: 12 }} />
+                <Recharts.Tooltip />
+                <Recharts.Legend />
+                <Recharts.Bar dataKey="rtt" fill="#82ca9d" />
+              </Recharts.BarChart>
+            </Recharts.ResponsiveContainer>
+
+            {/* Showing failed requests */}
+            <h3 className="text-xl font-semibold text-gray-700 mt-6 mb-2">2.2. Failed Requests (Out of Scope)</h3>
+            <p className="text-gray-600">
+              Requests to external resources returned <code className="text-red-600">403 Forbidden</code>.
+            </p>
+            <table className="w-full mt-4 border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-red-600 text-white">
+                  <th className="border border-gray-300 p-2">ID</th>
+                  <th className="border border-gray-300 p-2">Timestamp</th>
+                  <th className="border border-gray-300 p-2">Method</th>
+                  <th className="border border-gray-300 p-2">URL</th>
+                  <th className="border border-gray-300 p-2">Code</th>
+                  <th className="border border-gray-300 p-2">RTT (ms)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 p-2">1345</td>
+                  <td className="border border-gray-300 p-2">Tue Apr 29 14:15:13 ICT 2025</td>
+                  <td className="border border-gray-300 p-2">GET</td>
+                  <td className="border border-gray-300 p-2">http://clients2.google.com/time/1/current?...</td>
+                  <td className="border border-gray-300 p-2">403</td>
+                  <td className="border border-gray-300 p-2">0</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 p-2">1348</td>
+                  <td className="border border-gray-300 p-2">Tue Apr 29 14:15:14 ICT 2025</td>
+                  <td className="border border-gray-300 p-2">GET</td>
+                  <td className="border border-gray-300 p-2">https://fonts.googleapis.com/css2?family=Poppins...</td>
+                  <td className="border border-gray-300 p-2">403</td>
+                  <td className="border border-gray-300 p-2">0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Highlighting security alerts */}
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">3. Security Alerts</h2>
+            <p className="text-gray-600">
+              All in-scope requests have a <span className="text-orange-600 font-bold">Highest Alert: Medium</span>. Potential issues include:
+            </p>
+            <ul className="list-disc list-inside mt-4 text-gray-600">
+              <li><strong>Missing Security Headers:</strong> Lack of CSP, X-Frame-Options, and HSTS.</li>
+              <li><strong>Insecure External Resources:</strong> Google Fonts, Stackpath resources failed to load (403 Forbidden).</li>
+              <li><strong>Small API Responses:</strong> JSON responses as small as 20 bytes (e.g., ID 1373).</li>
+            </ul>
+          </div>
+
+          {/* Providing recommendations */}
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">4. Recommendations</h2>
+            <div className="bg-green-50 p-4 border-l-4 border-green-500">
+              <p className="text-gray-600"><strong>4.1. Configure SSL Certificates:</strong> Install the ZAP Root CA certificate in Postman or the browser to avoid SSL issues.</p>
+              <p className="text-gray-600"><strong>4.2. Add Security Headers:</strong> Implement CSP, X-Frame-Options, and HSTS to enhance security.</p>
+              <p className="text-gray-600"><strong>4.3. Optimize Performance:</strong> High RTT (up to 1280ms for bg_4.jpg). Use a CDN and compress resources like images and CSS.</p>
+              <p className="text-gray-600"><strong>4.4. Fuzz APIs:</strong> Perform fuzzing on endpoints like <code className="text-blue-600">/check-login</code> to identify vulnerabilities.</p>
+            </div>
+          </div>
+
+          {/* Highlighting an interesting fact */}
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">5. Interesting Fact</h2>
+            <p className="text-gray-600">
+              Despite the large number of requests (49276), the favicon.ico request (ID 1401) was the only one to return a <code className="text-red-600">404 Not Found</code> status, indicating a missing favicon. This could lead to unnecessary requests from browsers, slightly impacting performance.
+            </p>
+          </div>
+        </div>
+      );
+    };
+
+    // Rendering the app using createRoot
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
